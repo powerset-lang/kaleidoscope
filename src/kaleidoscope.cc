@@ -1,11 +1,13 @@
 
 #include <cctype>
 #include <cstdio>
+#include <functional>
 #include <iostream>
+#include <memory>
+#include <string>
 #include <type_traits>
 
 using namespace std;
-
 
 // Lexer
 // Class to hold the state, typically only one instance of it.
@@ -32,7 +34,7 @@ private:
     
     // Member Functions
     // ****************
-    
+public:
     int gettok() {
         // Skip whitespace
         while (isspace(prevChar)) prevChar = getchar();
@@ -77,10 +79,77 @@ private:
     
 };
 
+
+// [=========]
+// | Parsing |
+// [=========]
+
+namespace parse {
+
+// Base class for all expression AST nodes
+class ExpAst {
+public:
+    virtual ~ExpAst() {}
+    virtual void show(int indent) const {}
+};
+
+using UAst = unique_ptr<ExpAst>;
+
+// Numeric literals
+class NumberExpAst : public ExpAst {
+    double num;
+public:
+    NumberExpAst(double numVal) : num(numVal) {}
+    
+    void show(int indent) const {
+        for (int i = 0; i < indent; i++) { cout << " "; }
+        cout << "Num " << num << endl;
+    }
+};
+
+class VarExpAst : public ExpAst {
+    string name;
+public:
+    VarExpAst(const string& nameVal) : name(nameVal) {}
+    
+    void show(int indent) const {
+        for (int i = 0; i < indent; i++) { cout << " "; }
+        cout << "Var " << name << endl;
+    }
+};
+
+class BinOpExpAst : public ExpAst {
+    char op;
+    UAst left, right;
+public:
+    BinOpExpAst(char opVal, UAst ltree, UAst rtree) 
+        : op(opVal), 
+        left(move(ltree)), 
+        right(move(rtree)) 
+    {}
+    
+    void show(int indent) const {
+        for (int i = 0; i < indent; i++) { cout << " "; }
+        cout << "BinOp op: " << op << endl;
+        for (int i = 0; i < indent; i++) { cout << " "; }
+        cout << "  lchild: \\" << endl;
+        left->show(indent+4);
+        for (int i = 0; i < indent; i++) { cout << " "; }
+        cout << "  rchild: \\" << endl;
+        right->show(indent+4);
+    }
+};
+
+// TODO next: Fn Call Expr AST
+
+} // end namespace "parse"
+
+
 // Entry Point
 // auto main(int argc, char* argv[]) -> int {
 auto main() -> int {
-    
+    // This project initially based on:
+    // https://llvm.org/docs/tutorial/MyFirstLanguageFrontend/index.html
     cout << "Welcome to my Kaleidoscope tutorial compiler!" << endl;
     
     auto lex = Lex{};
