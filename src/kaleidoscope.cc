@@ -1,18 +1,24 @@
 
 #include <cctype>
+#include <cstddef>
 #include <cstdio>
 #include <functional>
 #include <iostream>
 #include <memory>
 #include <string>
 #include <type_traits>
+#include <unordered_map>
+#include <utility>
 
 using namespace std;
 
-// Lexer
+
+
+// ##[ Lexer ]##
+
 // Class to hold the state, typically only one instance of it.
 class Lex {
-    
+public:
     enum Tok : int {
         TokEof = -1,
         // Commands
@@ -24,6 +30,7 @@ class Lex {
         // All other toks are their (positive) ASCII value.
     };
     
+public:
     // Token value data storage
     string identVal {}; // buffer for an ident tok
     double numberVal {0}; 
@@ -80,11 +87,17 @@ public:
 };
 
 
+
+
 // [=========]
-// | Parsing |
+// # Parsing #
 // [=========]
 
-namespace parse {
+namespace p {
+
+// ##[ AST Nodes ]##
+
+// ** Expressions **
 
 // Base class for all expression AST nodes
 class ExpAst {
@@ -93,7 +106,7 @@ public:
     virtual void show(int indent) const {}
 };
 
-using UAst = unique_ptr<ExpAst>;
+using UExpAst = unique_ptr<ExpAst>;
 
 // Numeric literals
 class NumberExpAst : public ExpAst {
@@ -120,13 +133,10 @@ public:
 
 class BinOpExpAst : public ExpAst {
     char op;
-    UAst left, right;
+    UExpAst left, right;
 public:
-    BinOpExpAst(char opVal, UAst ltree, UAst rtree) 
-        : op(opVal), 
-        left(move(ltree)), 
-        right(move(rtree)) 
-    {}
+    BinOpExpAst(char opVal, UExpAst ltree, UExpAst rtree) 
+        : op(opVal), left(move(ltree)), right(move(rtree)) {}
     
     void show(int indent) const {
         for (int i = 0; i < indent; i++) { cout << " "; }
@@ -140,9 +150,262 @@ public:
     }
 };
 
-// TODO next: Fn Call Expr AST
+class CallExpAst : public ExpAst {
+    string name;
+    vector<UExpAst> args;
+public:
+    CallExpAst(const string& name, vector<UExpAst> args)
+        : name(name), args(move(args)) {}
+};
 
-} // end namespace "parse"
+
+// ** Function declarations & definitions **
+
+// Function Prototypes / Signatures, with fn name and arg names
+class PrototypeAst {
+    string name;
+    vector<string> params;
+public:
+    PrototypeAst(const string& name, vector<string> params)
+        : name(name), params(move(params)) {}
+    
+    const string& getName() const { return name; }
+};
+
+using UProtoAst = unique_ptr<PrototypeAst>;
+
+class FunctionAst {
+    UProtoAst proto;
+    UExpAst body;
+public:
+    FunctionAst(UProtoAst proto, UExpAst body) 
+        : proto(move(proto)), body(move(body)) {}
+};
+
+using UFunAst = unique_ptr<FunctionAst>;
+
+
+// ##[ Parser ]##
+
+class Parse {
+    
+    Lex lex {};
+    
+    int curTok; // Should be an enum Tok?
+    
+    int getNextToken() {
+        return curTok = lex.gettok();
+    }
+    
+    // Helpers for error logging
+    static 
+    UExpAst logError(const char* str) {
+        fprintf(stderr, "LogError: %s\n", str);
+        return nullptr; 
+    }
+    static
+    UProtoAst logErrorP(const char* str) {
+        logError(str);
+        return nullptr;
+    }
+    
+    // ** Mutually Recursive Parser Functions **
+    
+    UExpAst parseNumberExp() {
+        auto result = make_unique<NumberExpAst>(lex.numberVal);
+        getNextToken(); // consumes the number token
+        return result; //Note std::move is redundant
+    }
+    
+    UExpAst parseParenExp() {
+        getNextToken(); // consume left paren
+        auto e = parseExp();
+        if (!e) return nullptr;
+        if (curTok != ')') return logError("expected ')'");
+        getNextToken(); // consume right paren
+        return e;
+    }
+    
+    // for both variable references and fn calls.
+    UExpAst parseIdentExp() {
+        string name = lex.identVal;
+        getNextToken(); // consume ident
+        if (curTok != '(') return make_unique<VarExpAst>(name);
+        // since cur tok is left paren, this is now an fn call.
+        getNextToken(); // consume left paren
+        vector<UExpAst> args;
+        if (curTok != ')') {
+            while (true) {
+                if (auto arg = parseExp()) {
+                    args.push_back(move(arg));
+                } else {
+                    return nullptr;
+                }
+                if (curTok == ')') break;
+                if (curTok != ',') {
+                    return logError("Expected ')' or ',' in argument list.");
+                }
+                getNextToken();
+            }
+        }
+        getNextToken(); // consume right paren
+        return make_unique<CallExpAst>(name, move(args));
+    }
+    
+    // determine which kind of "primary expression" this is.
+    UExpAst parsePrimary() {
+        switch (curTok) {
+        case Lex::TokIdent:
+            return parseIdentExp();
+        case Lex::TokNumber:
+            return parseNumberExp();
+        case '(':
+            return parseParenExp();
+        default:
+            return logError("Unknown token when expecting an expression");
+        }
+    }
+    
+    // * Binary Operators via Operator Precedence Parser *
+    
+    // precedences
+private:
+    unordered_map<char, int> binOpPrec { // Todo: make static?
+        {'<', 10}, 
+        {'+', 20},
+        {'-', 20},
+        {'*', 40}
+    };
+    
+    // return precedence of curTok, if applicable, else -1
+    int getTokPrec() {
+        if (!isascii(curTok)) return -1;
+        int tokPrec = binOpPrec[curTok]; //Todo?
+        if (tokPrec <= 0) return -1;
+        return tokPrec;
+    }
+    
+    UExpAst parseExp() {
+        auto lhs = parsePrimary();
+        if (!lhs) return nullptr;
+        return parseBinOpRhs(0, move(lhs));
+    }
+    
+    UExpAst parseBinOpRhs(int expPrec, UExpAst lhs) {
+        while (true) {
+            int tokPrec = getTokPrec();
+            if (tokPrec < expPrec) return lhs;
+            int binOp = curTok;
+            getNextToken(); // consume operator
+            auto rhs = parsePrimary();
+            if (!rhs) return nullptr;
+            int nextPrec = getTokPrec();
+            if (tokPrec < nextPrec) {
+                rhs = parseBinOpRhs(tokPrec+1, move(rhs));
+                if (!rhs) return nullptr;
+            }
+            // Merge the lhs and rhs.
+            lhs = make_unique<BinOpExpAst>(binOp, move(lhs), move(rhs));
+        }
+    }
+    
+    // * Function declarations and definitions *
+    
+    UProtoAst parseProto() {
+        if (curTok != Lex::TokIdent) {
+            return logErrorP("Expected function name in prototype");
+        }
+        string name = lex.identVal;
+        getNextToken(); // consume identifier
+        if (curTok != '(') return logErrorP("Expected '(' in prototype");
+        getNextToken(); // consume left paren
+        vector<string> argNames;
+        while(getNextToken() == Lex::TokIdent) {
+            argNames.push_back(lex.identVal);
+        }
+        if (curTok != ')') return logErrorP("Expected ')' in prototype");
+        getNextToken(); // consume right paren
+        return make_unique<PrototypeAst>(name, move(argNames));
+    }
+    
+    // Function definitions are 'def', a proto, then an exp as the body.
+    UFunAst parseFunDef() {
+        getNextToken(); // consume 'def'
+        auto proto = parseProto();
+        if (not proto) return nullptr;
+        if (auto exp = parseExp()) {
+            return make_unique<FunctionAst>(move(proto), move(exp));
+        }
+        return nullptr;
+    }
+    
+    // Extern function declarations are 'extern' plus a proto.
+    UProtoAst parseExternFun() {
+        getNextToken(); // consume 'extern'
+        return parseProto();
+    }
+    
+    
+    // ** REPL for interactive parsing experimentation **
+    
+private:
+    FILE* replStream { stderr };
+    
+public:
+    void repl() {
+        while (true) {
+            fprintf(replStream, "ready> ");
+            switch (curTok) {
+            case Lex::TokEof:
+                fprintf(replStream, "Goodbye!\n");
+                return;
+            case ';':
+                getNextToken(); // skip semicolons
+                break;
+            case Lex::TokDef:
+                replDef();
+                break;
+            case Lex::TokExtern:
+                replExtern();
+                break;
+            default:
+                replExp();
+                break;
+            }
+        }
+    }
+    
+private:
+    void replDef() {
+        if (parseFunDef()) {
+            fprintf(replStream, "Parsed a function definition.\n");
+        } else {
+            getNextToken(); // skip tok for error recovery?
+        }
+    }
+    
+    void replExtern() {
+        if (parseExternFun()) {
+            fprintf(replStream, "Parsed an extern function declaration.\n");
+        } else {
+            getNextToken(); // skip tok for error recovery?
+        }
+    }
+    
+    void replExp() {
+        if (parseExp()) {
+            fprintf(replStream, "Parsed a top-level expression.\n");
+        } else {
+            getNextToken(); // skip tok for error recovery?
+        }
+    }
+    
+};
+
+
+} // end namespace p
+
+
 
 
 // Entry Point
@@ -152,7 +415,9 @@ auto main() -> int {
     // https://llvm.org/docs/tutorial/MyFirstLanguageFrontend/index.html
     cout << "Welcome to my Kaleidoscope tutorial compiler!" << endl;
     
-    auto lex = Lex{};
+    auto parser = p::Parse{};
+    
+    parser.repl();
     
     return 0;
 }
