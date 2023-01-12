@@ -16,7 +16,7 @@ using namespace std;
 
 // ##[ Lexer ]##
 
-// Class to hold the state, typically only one instance of it.
+// Class to hold the state, typically one instance of it per parser.
 class Lex {
 public:
     enum Tok : int {
@@ -30,8 +30,8 @@ public:
         // All other toks are their (positive) ASCII value.
     };
     
-public:
     // Token value data storage
+public:
     string identVal {}; // buffer for an ident tok
     double numberVal {0}; 
     
@@ -89,24 +89,31 @@ public:
 
 
 
-// [=========]
-// # Parsing #
-// [=========]
+// [=================]
+// # Parsing and AST #
+// [=================]
 
-namespace p {
 
 // ##[ AST Nodes ]##
+
+// Shared behavior for all kinds of AST nodes
+class Ast {
+public:
+    virtual void show(int indent) const = 0;
+};
 
 // ** Expressions **
 
 // Base class for all expression AST nodes
-class ExpAst {
+class ExpAst : public Ast {
 public:
     virtual ~ExpAst() {}
-    virtual void show(int indent) const {}
+    // virtual void show(int indent) const {}
+    // Todo next: add code gen virtual method
 };
 
 using UExpAst = unique_ptr<ExpAst>;
+
 
 // Numeric literals
 class NumberExpAst : public ExpAst {
@@ -116,7 +123,7 @@ public:
     
     void show(int indent) const {
         for (int i = 0; i < indent; i++) { cout << " "; }
-        cout << "Num " << num << endl;
+        cout << "Num val: " << num << endl;
     }
 };
 
@@ -127,7 +134,7 @@ public:
     
     void show(int indent) const {
         for (int i = 0; i < indent; i++) { cout << " "; }
-        cout << "Var " << name << endl;
+        cout << "Var name: " << name << endl;
     }
 };
 
@@ -156,13 +163,24 @@ class CallExpAst : public ExpAst {
 public:
     CallExpAst(const string& name, vector<UExpAst> args)
         : name(name), args(move(args)) {}
+    
+    void show(int indent) const {
+        for (int i = 0; i < indent; i++) { cout << " "; }
+        cout << "Call fn: " << name << ", args: \\" << endl;
+        for (int ai = 0; auto&& a: args) {
+            for (int i = 0; i < indent; i++) { cout << " "; }
+            cout << "  arg " << ai << ": \\" << endl;
+            a->show(indent+4);
+            ai++;
+        }
+    }
 };
 
 
 // ** Function declarations & definitions **
 
 // Function Prototypes / Signatures, with fn name and arg names
-class PrototypeAst {
+class PrototypeAst : public Ast {
     string name;
     vector<string> params;
 public:
@@ -170,16 +188,36 @@ public:
         : name(name), params(move(params)) {}
     
     const string& getName() const { return name; }
+    
+    virtual void show(int indent) const {
+        for (int i = 0; i < indent; i++) { cout << " "; }
+        cout << "Proto fn: " << name << ", params: \\" << endl;
+        for (int pi = 0; auto&& p: params) {
+            for (int i = 0; i < indent; i++) { cout << " "; }
+            cout << "  param " << pi << ": " << p << endl;
+            pi++;
+        }
+    }
 };
 
 using UProtoAst = unique_ptr<PrototypeAst>;
 
-class FunctionAst {
+
+class FunctionAst : public Ast {
     UProtoAst proto;
     UExpAst body;
 public:
     FunctionAst(UProtoAst proto, UExpAst body) 
         : proto(move(proto)), body(move(body)) {}
+    
+    virtual void show(int indent) const {
+        for (int i = 0; i < indent; i++) { cout << " "; }
+        cout << "FunDef proto: \\" << endl;
+        proto->show(indent+4);
+        for (int i = 0; i < indent; i++) { cout << " "; }
+        cout << "  body: \\" << endl;
+        body->show(indent+4);
+    }
 };
 
 using UFunAst = unique_ptr<FunctionAst>;
@@ -347,17 +385,16 @@ private:
     
     
     // ** REPL for interactive parsing experimentation **
-    
-private:
-    FILE* replStream { stderr };
+// Todo: make this a separate class!
     
 public:
     void repl() {
         while (true) {
-            fprintf(replStream, "ready> ");
+            cout << "ready> ";
+            getNextToken();
             switch (curTok) {
             case Lex::TokEof:
-                fprintf(replStream, "Goodbye!\n");
+                cout << "Goodbye!" << endl;
                 return;
             case ';':
                 getNextToken(); // skip semicolons
@@ -377,33 +414,35 @@ public:
     
 private:
     void replDef() {
-        if (parseFunDef()) {
-            fprintf(replStream, "Parsed a function definition.\n");
+        if (auto f = parseFunDef()) {
+            cout << "Parsed a function definition." << endl;
+            f->show(2);
         } else {
-            getNextToken(); // skip tok for error recovery?
+            getNextToken(); // skip tok for error recovery
         }
     }
     
     void replExtern() {
-        if (parseExternFun()) {
-            fprintf(replStream, "Parsed an extern function declaration.\n");
+        if (auto e = parseExternFun()) {
+            cout << "Parsed an extern function declaration." << endl;
+            e->show(2);
         } else {
-            getNextToken(); // skip tok for error recovery?
+            getNextToken(); // skip tok for error recovery
         }
     }
     
     void replExp() {
-        if (parseExp()) {
-            fprintf(replStream, "Parsed a top-level expression.\n");
+        if (auto e = parseExp()) {
+            cout << "Parsed a top-level expression." << endl;
+            e->show(2);
         } else {
-            getNextToken(); // skip tok for error recovery?
+            getNextToken(); // skip tok for error recovery
         }
     }
     
 };
 
 
-} // end namespace p
 
 
 
@@ -415,7 +454,7 @@ auto main() -> int {
     // https://llvm.org/docs/tutorial/MyFirstLanguageFrontend/index.html
     cout << "Welcome to my Kaleidoscope tutorial compiler!" << endl;
     
-    auto parser = p::Parse{};
+    auto parser = Parse{};
     
     parser.repl();
     
