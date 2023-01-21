@@ -1,0 +1,4 @@
+Diagnostics:
+  Suppress:
+    -Wunqualified-std-cast-call
+

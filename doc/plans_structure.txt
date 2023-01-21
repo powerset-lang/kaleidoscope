@@ -1,0 +1,24 @@
+
+Code structure planned:
+src/
+    kaleidoscope.cc - contains main(), command line argument parsing, and either launches the REPL or the batch-mode compiler with the specified mode.
+    repl.cc - can use directives (what metasyntax?) to set the mode of the repl, which then passes each line independently to the batch compiler in the current mode.
+
+Modes are:
+lex
+parse
+codegen
+obj
+exe
+
+Should there be a "debug level", or specification of where to put debug output?
+
+
+Factor apart user interaction into the 'ui', including repl. The UI drives creation of a 'compiler' object, which holds state/settings for the compiler. In the UI, the REPL issues the input string to the compiler as a standalone input, perhaps creating a new compiler each time around. REPL definitely can change the settings of the compiler(s) it is using/creating, such as the mode (lex/pars/etc).
+
+Now, there are 2 headers to solve communication in both directions between the UI and the compiler.
+- compilesettings.hh : class CompileSettings : "Downward commands", or the current settings as given by the user in the REPL/cmd line options.
+- uicmd.hh : class UiCmd : "Upward commands", or how the compiler units communicate upward, including error messages and desired changes to settings.
+This allows some semblance of separation between actual logic and interaction stuff... (kind of like model-view-controller? more like just model-view?)
+
+
