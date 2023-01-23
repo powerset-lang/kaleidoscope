@@ -9,7 +9,7 @@ using std::endl;
 
 // ##[ Lexer ]##
 
-int Parse::Lex::gettok() {
+int Parser::Lexer::gettok() {
     // Skip whitespace
     while (isspace(prevChar)) prevChar = std::cin.get();
     // Recognize kws and idents
@@ -54,11 +54,11 @@ int Parse::Lex::gettok() {
 // ##[ Parser ]##
 
 // Helpers for error logging
-UExpAst Parse::logError(const char* str) {
+UExpAst Parser::logError(const char* str) {
     *cs->err << str << endl;
     return nullptr; 
 }
-UProtoAst Parse::logErrorProto(const char* str) {
+UProtoAst Parser::logErrorProto(const char* str) {
     logError(str);
     return nullptr;
 }
@@ -66,7 +66,7 @@ UProtoAst Parse::logErrorProto(const char* str) {
 // int Parse::getNextToken();
 
 // return precedence of curTok, if applicable, else -1
-int Parse::getTokPrec() {
+int Parser::getTokPrec() {
     if (!isascii(curTok)) return -1;
     int tokPrec = binOpPrec[curTok]; //Todo?
     if (tokPrec <= 0) return -1;
@@ -75,13 +75,13 @@ int Parse::getTokPrec() {
 
 // ** Mutually Recursive Parser Functions **
 
-UExpAst Parse::parseNumberExp() {
+UExpAst Parser::parseNumberExp() {
     auto result = std::make_unique<NumberExpAst>(lex.numberVal);
     getNextToken(); // consumes the number token
     return result; //Note std::move is redundant
 }
 
-UExpAst Parse::parseParenExp() {
+UExpAst Parser::parseParenExp() {
     getNextToken(); // consume left paren
     auto e = parseExp();
     if (!e) return nullptr;
@@ -91,7 +91,7 @@ UExpAst Parse::parseParenExp() {
 }
 
 // for both variable references and fn calls.
-UExpAst Parse::parseIdentExp() {
+UExpAst Parser::parseIdentExp() {
     std::string name = lex.identVal;
     getNextToken(); // consume ident
     if (curTok != '(') return make_unique<VarExpAst>(name);
@@ -117,11 +117,11 @@ UExpAst Parse::parseIdentExp() {
 }
 
 // determine which kind of "primary expression" this is.
-UExpAst Parse::parsePrimary() {
+UExpAst Parser::parsePrimary() {
     switch (curTok) {
-    case Lex::TokIdent:
+    case Lexer::TokIdent:
         return parseIdentExp();
-    case Lex::TokNumber:
+    case Lexer::TokNumber:
         return parseNumberExp();
     case '(':
         return parseParenExp();
@@ -130,7 +130,7 @@ UExpAst Parse::parsePrimary() {
     }
 }
 
-UExpAst Parse::parseExp() {
+UExpAst Parser::parseExp() {
     auto lhs = parsePrimary();
     if (!lhs) return nullptr;
     return parseBinOpRhs(0, move(lhs));
@@ -138,7 +138,7 @@ UExpAst Parse::parseExp() {
 
 // * Binary Operators via Operator Precedence Parser *
 
-UExpAst Parse::parseBinOpRhs(int expPrec, UExpAst lhs) {
+UExpAst Parser::parseBinOpRhs(int expPrec, UExpAst lhs) {
     while (true) {
         int tokPrec = getTokPrec();
         if (tokPrec < expPrec) return lhs;
@@ -158,8 +158,8 @@ UExpAst Parse::parseBinOpRhs(int expPrec, UExpAst lhs) {
 
 // * Function declarations and definitions *
 
-UProtoAst Parse::parseProto() {
-    if (curTok != Lex::TokIdent) {
+UProtoAst Parser::parseProto() {
+    if (curTok != Lexer::TokIdent) {
         return logErrorProto("Expected function name in prototype");
     }
     std::string name = lex.identVal;
@@ -167,7 +167,7 @@ UProtoAst Parse::parseProto() {
     if (curTok != '(') return logErrorProto("Expected '(' in prototype");
     getNextToken(); // consume left paren
     std::vector<std::string> argNames;
-    while(getNextToken() == Lex::TokIdent) {
+    while(getNextToken() == Lexer::TokIdent) {
         argNames.push_back(lex.identVal);
     }
     if (curTok != ')') return logErrorProto("Expected ')' in prototype");
@@ -176,13 +176,13 @@ UProtoAst Parse::parseProto() {
 }
 
 // Extern function declarations are 'extern' plus a proto.
-UProtoAst Parse::parseExternFun() {
+UProtoAst Parser::parseExternFun() {
     getNextToken(); // consume 'extern'
     return parseProto();
 }
 
 // Function definitions are 'def', a proto, then an exp as the body.
-UFunAst Parse::parseFunDef() {
+UFunAst Parser::parseFunDef() {
     getNextToken(); // consume 'def'
     auto proto = parseProto();
     if (not proto) return nullptr;
@@ -195,20 +195,20 @@ UFunAst Parse::parseFunDef() {
 
 // ** Support REPL parsing **
 
-UiCmd Parse::replParse [[nodiscard]] () {
+UiCmd Parser::replParse [[nodiscard]] () {
     getNextToken(); //?
     switch (curTok) {
-    case Lex::TokEof:
+    case Lexer::TokEof:
         return UiCmd(UiCmd::Exit{});
     case ';':
         getNextToken(); // skip semicolons
         return UiCmd(UiCmd::Empty{});
-    case Lex::TokDef:
+    case Lexer::TokDef:
         if (auto ua = replParseDef()) {
             return UiCmd(UiCmd::Parsed{}, move(ua.value()));
         }
         return UiCmd(UiCmd::Error{}, "Failed to parse a function definition.");
-    case Lex::TokExtern:
+    case Lexer::TokExtern:
         if (auto ua = replParseExtern()) {
             return UiCmd(UiCmd::Parsed{}, move(ua.value()));
         }
@@ -222,7 +222,7 @@ UiCmd Parse::replParse [[nodiscard]] () {
     }
 }
 
-OUFunAst Parse::replParseDef [[nodiscard]] () {
+OUFunAst Parser::replParseDef [[nodiscard]] () {
     if (UFunAst f = parseFunDef()) {
         // cout << "Parsed a function definition." << endl;
         // f->show(2);
@@ -233,7 +233,7 @@ OUFunAst Parse::replParseDef [[nodiscard]] () {
     }
 }
 
-OUProtoAst Parse::replParseExtern [[nodiscard]] () {
+OUProtoAst Parser::replParseExtern [[nodiscard]] () {
     if (UProtoAst e = parseExternFun()) {
         // cout << "Parsed an extern function declaration." << endl;
         // e->show(2);
@@ -244,7 +244,7 @@ OUProtoAst Parse::replParseExtern [[nodiscard]] () {
     }
 }
 
-OUExpAst Parse::replParseExp [[nodiscard]] () {
+OUExpAst Parser::replParseExp [[nodiscard]] () {
     if (UExpAst e = parseExp()) {
         // cout << "Parsed a top-level expression." << endl;
         // e->show(2);

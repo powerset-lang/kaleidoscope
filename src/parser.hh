@@ -12,11 +12,11 @@
 
 // ##[ Parser ]##
 
-class Parse {
+class Parser {
     
     // ##[ Lexer ]##
     // One instance of it per parser.
-    class Lex {
+    class Lexer {
     public:
         enum Tok : int {
             TokEof = -1,
@@ -39,13 +39,13 @@ class Parse {
     };
     
     // Data
-    Lex lex {};
+    Lexer lex {};
     int curTok {}; 
     std::unordered_map<char, int> binOpPrec {};
     const CompileSettings* cs;
     
 public:
-    Parse(const CompileSettings* cs) : cs(cs) {
+    Parser(const CompileSettings* cs) : cs(cs) {
         // cs = csp;
         // If there are parser specific settings, perhaps there should be a 
         //   parser settings class? or should parser hold a ptr to compiler? 

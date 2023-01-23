@@ -54,16 +54,15 @@ int Ui::repl() {
             *s << "Parsed a: " << cmd.valParsed->getTypeDesc() <<"."<<std::endl;
             cmd.valParsed->show(2);
             break;
+        default:
+            cmd.type = CError;
+            cmd.valError = "Unmatched UI Command type";
+            [[fallthrough]];
         case CError:
-        caseCError:
             *s << cmd.valError << std::endl;
             return 1;
         case CEmpty:
             break;
-        default:
-            cmd.type = CError;
-            cmd.valError = "Unmatched UI Command type";
-            goto caseCError;
         }
     }
 }

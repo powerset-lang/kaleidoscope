@@ -13,11 +13,11 @@ class Compiler {
 public:
     CompileSettings cs {};
     // UAst ast {}; //?
-    Parse parser = Parse(&cs); //?
+    Parser parser = Parser(&cs); //?
     
     // UAst parse();
     Compiler() = default;
-    Compiler(CompileSettings cs) : cs(cs) {parser = Parse(&cs);}
+    Compiler(CompileSettings cs) : cs(cs) {parser = Parser(&cs);}
 };
 
 
