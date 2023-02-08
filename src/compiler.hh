@@ -6,7 +6,7 @@
 
 #include <ast.hh>
 #include <compilesettings.hh>
-#include <parser.hh>
+#include <syntax/parser.hh>
 
 
 class Compiler {

@@ -13,6 +13,7 @@
 // Shared behavior for all kinds of AST nodes
 class Ast {
 public:
+    virtual ~Ast() = default;
     virtual void show(int indent) const = 0; //=0 ?
     virtual std::string getTypeDesc() const = 0;
 };

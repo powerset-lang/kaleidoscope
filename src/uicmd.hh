@@ -2,37 +2,34 @@
 #define HH_UICMD
 
 
+#include <variant>
+
 #include <ast.hh>
 
-// Directives as returned by compiler to REPL.
-struct UiCmd {
-    // The types of UI command:
-    enum UiCmdType {
-        CSetPrompt,
-        CExit,
-        CParsed,
-        CError,
-        CEmpty,
-    };
-    struct SetPrompt {};
-    struct Exit {};
-    struct Parsed {};
-    struct Error {};
-    struct Empty {};
+
+struct CmdSetPrompt {std::string valSetPrompt;};
+struct CmdExit {};
+struct CmdParsed {UAst valParsed;};
+struct CmdError {std::string valError;};
+struct CmdEmpty {};
+
+using UiCmd = std::variant< //DataUiCmd
+    CmdSetPrompt,
+    CmdExit,
+    CmdParsed,
+    CmdError,
+    CmdEmpty
+>;
+
+// // Directives as returned by compiler to REPL.
+// struct UiCmd {
     
-    // Data
-    enum UiCmdType type {CEmpty};
-    std::string valSetPrompt {};
-    UAst valParsed {};
-    std::string valError {};
+// public:
+//     UiCmd(DataUiCmd d) : data(move(d)) {}
     
-    UiCmd(SetPrompt, std::string newPrompt) 
-        : type(CSetPrompt), valSetPrompt(newPrompt) {}
-    UiCmd(Exit) : type(CExit) {}
-    UiCmd(Parsed, UAst uast) : type(CParsed), valParsed(move(uast)) {}
-    UiCmd(Error, std::string errMsg) : type(CError), valError(errMsg) {}
-    UiCmd(Empty) : type(CEmpty) {}
-};
+// private:
+//     DataUiCmd data;
+// };
 
 
 #endif // HH_UICMD

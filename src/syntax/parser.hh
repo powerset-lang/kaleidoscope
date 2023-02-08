@@ -1,11 +1,15 @@
-#ifndef HH_PARSER
-#define HH_PARSER
+#ifndef HH_SYNTAX_PARSER
+#define HH_SYNTAX_PARSER
 
 
+#include <array>
 #include <list>
+#include <tuple>
 #include <unordered_map>
 
 #include <ast.hh>
+#include <syntax/lexer.hh>
+#include <syntax/token.hh>
 #include <compilesettings.hh>
 #include <uicmd.hh>
 
@@ -14,46 +18,57 @@
 
 class Parser {
     
-    // ##[ Lexer ]##
-    // One instance of it per parser.
-    class Lexer {
-    public:
-        enum Tok : int {
-            TokEof = -1,
-            TokDef = -2,
-            TokExtern = -3,
-            TokIdent = -4,
-            TokNumber = -5,
-            // All other toks are their (positive) ASCII value.
-        };
+    // // ##[ Lexer ]##
+    // // One instance of it per parser.
+    // class Lexer {
+    // public:
+    //     enum Tok : int {
+    //         TokEof = -1,
+    //         TokDef = -2,
+    //         TokExtern = -3,
+    //         TokIdent = -4,
+    //         TokNumber = -5,
+    //         // All other toks are their (positive) ASCII value.
+    //     };
         
-        // Token value data storage
-    public:
-        std::string identVal {}; // buffer for an ident tok
-        double numberVal {0}; 
+    //     // Token value data storage
+    // public:
+    //     std::string identVal {}; // buffer for an ident tok
+    //     double numberVal {0}; 
         
-    private:
-        int prevChar {' '}; // State for gettok()
-    public:
-        int gettok();
+    // private:
+    //     int prevChar {' '}; // State for gettok()
+    // public:
+    //     int gettok();
+    // };
+    
+    // // Data
+    const CompileSettings* cs;
+    Lexer lex;// = Lexer(*cs->in);
+    Token curTok;
+    // std::unordered_map<char, int> binOpPrec {};
+    static constexpr
+    std::array binOpPrec {
+        std::tuple {'<',10}, 
+        std::tuple {'+',20},
+        std::tuple {'-',20},
+        std::tuple {'*',40}
     };
     
-    // Data
-    Lexer lex {};
-    int curTok {}; 
-    std::unordered_map<char, int> binOpPrec {};
-    const CompileSettings* cs;
-    
 public:
-    Parser(const CompileSettings* cs) : cs(cs) {
+    Parser(const CompileSettings* cs) 
+    : cs(cs), lex(Lexer(cs->in)), curTok(lex.current()) {
         // cs = csp;
         // If there are parser specific settings, perhaps there should be a 
         //   parser settings class? or should parser hold a ptr to compiler? 
         // Set operator precedences.
-        binOpPrec['<'] = 10;
-        binOpPrec['+'] = 20;
-        binOpPrec['-'] = 20;
-        binOpPrec['*'] = 40;
+        // binOpPrec['<'] = 10;
+        // binOpPrec['+'] = 20;
+        // binOpPrec['-'] = 20;
+        // binOpPrec['*'] = 40;
+        // cs = cs;
+        // lex = Lexer(cs->in);
+        // curTok = lex.current();
     }
 private:
     
@@ -64,7 +79,7 @@ private:
     UProtoAst logErrorProto(const char* str);
     
     // Updates curTok.
-    int getNextToken() { return curTok = lex.gettok(); }
+    Token getNextToken() { return curTok = lex.get(); }
     // return precedence of curTok, if applicable, else -1
     int getTokPrec();
     
@@ -93,4 +108,4 @@ private:
 };
 
 
-#endif // HH_PARSER
+#endif // HH_SYNTAX_PARSER

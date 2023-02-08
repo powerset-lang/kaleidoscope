@@ -1,6 +1,6 @@
 
-CPPFLAGS = -I./src
-CXX = g++
+CPPFLAGS = -I./src -I./src/syntax/
+CXX = clang++
 CXXFLAGS = -std=c++20 -pedantic -Wall -Wextra -g -ftrapv
 
 SRCS = $(wildcard src/*)
@@ -8,7 +8,7 @@ SRCS = $(wildcard src/*)
 all : kaleidoscope
 
 kaleidoscope : $(SRCS)
-	$(CXX) $(CPPFLAGS) -o bin/kaleidoscope src/unity.cc $(CXXFLAGS)
+	$(CXX) -o bin/kaleidoscope src/unity.cc $(CXXFLAGS) $(CPPFLAGS)
 
 clean :
 	rm bin/* 

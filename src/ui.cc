@@ -7,6 +7,7 @@
 // using std::endl;
 
 
+// Parse command-line arguments.
 Ui::Ui (std::queue<std::string_view> args) {
     co = Compiler(); // sets defaults
     auto programName = args.front(); // do nothing with it for now
@@ -39,31 +40,62 @@ int Ui::run() {
 int Ui::repl() {
     greet();
     while (true) {
-        using enum UiCmd::UiCmdType;
+        
+        enum Status {
+            Continue = -1,
+            Goodbye = 0,
+            Error = 1,
+        };
         
         auto s = &prompt();
         auto cmd = co.parser.replParse();
         
-        switch (cmd.type) {
-        case CSetPrompt:
-            promptStr = cmd.valSetPrompt;
-            break;
-        case CExit:
-            return farewell();
-        case CParsed:
-            *s << "Parsed a: " << cmd.valParsed->getTypeDesc() <<"."<<std::endl;
-            cmd.valParsed->show(2);
-            break;
-        default:
-            cmd.type = CError;
-            cmd.valError = "Unmatched UI Command type";
-            [[fallthrough]];
-        case CError:
-            *s << cmd.valError << std::endl;
-            return 1;
-        case CEmpty:
-            break;
-        }
+        auto st = std::visit<Status>(Overload{
+            
+            [this](CmdSetPrompt& c) {
+                promptStr = c.valSetPrompt;
+                return Continue;
+            },
+            [this](CmdExit& c) {
+                farewell(); 
+                return Goodbye;
+            },
+            [this](CmdParsed& c) {
+                *co.cs.out << "Parsed a: " << c.valParsed->getTypeDesc() 
+                    << "." << std::endl;
+                c.valParsed->show(2);
+                return Continue;
+            },
+            [this](CmdError& c) {
+                *co.cs.out << c.valError << std::endl;
+                return Error;
+            },
+            [this](CmdEmpty& c) {return Continue;}
+            
+        }, cmd);
+        
+        if (st == Continue) continue;
+        return st;
+        
+        // switch (cmd.type) {
+        // case CSetPrompt:
+        //     promptStr = cmd.valSetPrompt;
+        //     break;
+        // case CExit:
+        //     return farewell();
+        // case CParsed:
+        //     *s << "Parsed a: " << cmd.valParsed->getTypeDesc() <<"."<<std::endl;
+        //     cmd.valParsed->show(2);
+        //     break;
+        // default:
+        //     cmd.type = CError;
+        //     cmd.valError = "Unmatched UI Command type";
+        //     [[fallthrough]];
+        // case CError:
+            
+        // case CEmpty:
+        //     break;
+        // }
     }
 }
 

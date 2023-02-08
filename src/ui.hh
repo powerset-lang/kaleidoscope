@@ -18,6 +18,7 @@ class [[nodiscard]] Ui {
     
     std::string promptStr {"repl> "};
     
+    
     std::ostream& prompt() {
         return *co.cs.out << promptStr;
     }
@@ -37,6 +38,7 @@ class [[nodiscard]] Ui {
     // int replExp();
     
 public:
+    // Parse command-line arguments.
     Ui(std::queue<std::string_view> args);
     int run();
 };

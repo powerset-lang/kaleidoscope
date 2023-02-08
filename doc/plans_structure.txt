@@ -22,3 +22,8 @@ Now, there are 2 headers to solve communication in both directions between the U
 This allows some semblance of separation between actual logic and interaction stuff... (kind of like model-view-controller? more like just model-view?)
 
 
+Split out parser/lexer into a "syntax" directory, with a common Token type they both need to be aware of - but only Lexer needs to be 'friend' of, is responsible for creating them.
+AST doesn't belong in this folder, it should go a level out, or in its own subdirectory for common data types to be operated on representing program data ('types'? 'common'? 'data'? ...) along with things like CFG's if applicable..
+
+But what about compile settings & UI commands?
+
